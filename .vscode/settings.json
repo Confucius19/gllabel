@@ -1,0 +1,6 @@
+{
+  "files.associations": {
+    "*.mem": "verilog",
+    "iosfwd": "cpp"
+  }
+}
