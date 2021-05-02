@@ -444,6 +444,7 @@ void write_glyph_data_to_buffer(
 	uint16_t gridY,
 	uint16_t gridWidth,
 	uint16_t gridHeight) {
+
 	uint16_t* buffer = (uint16_t*)buffer8;
 	buffer[0] = gridX;
 	buffer[1] = gridY;
@@ -532,9 +533,9 @@ GLFontManager::Glyph* GLFontManager::GetGlyphForCodepoint(FT_Face face, uint32_t
 		bezierData,
 		curves,
 		glyphSize,
-		atlas->nextGridPos[0],
+		atlas->nextGridPos[0], // pos of grid within atlas?
 		atlas->nextGridPos[1],
-		kGridMaxSize,
+		kGridMaxSize, //size of vGrid
 		kGridMaxSize);
 
 	// TODO: Integrate with AtlasGroup / replace AtlasGroup
@@ -559,8 +560,8 @@ GLFontManager::Glyph* GLFontManager::GetGlyphForCodepoint(FT_Face face, uint32_t
 	atlas->nextGridPos[0] += kGridMaxSize;
 	atlas->uploaded = false;
 
-	writeBMP("bezierAtlas.bmp", kBezierAtlasSize, kBezierAtlasSize, 4, atlas->glyphDataBuf);
-	writeBMP("gridAtlas.bmp", kGridAtlasSize, kGridAtlasSize, 4, atlas->gridAtlas);
+	// writeBMP("bezierAtlas.bmp", kBezierAtlasSize, kBezierAtlasSize, 4, atlas->glyphDataBuf);
+	// writeBMP("gridAtlas.bmp", kGridAtlasSize, kGridAtlasSize, 4, atlas->gridAtlas);
 
 	return &this->glyphs[face][point];
 }

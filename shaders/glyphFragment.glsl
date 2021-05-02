@@ -11,9 +11,15 @@ precision highp float;
 uniform sampler2D uGridAtlas;
 uniform samplerBuffer uGlyphData;
 
+
 in vec4 oColor;
+
 flat in uint glyphDataOffset;
+
+//oGridRect.xy is origin in the grid atlas
+//oGridRect.zw is size of the grid
 flat in ivec4 oGridRect;
+//float between [0,1] that indicates where it is on the glyph's quad
 in vec2 oNormCoord;
 
 layout(location = 0) out vec4 outColor;
@@ -75,6 +81,8 @@ float integrateWindow(float x)
 	//return 0.5 * (1.0 - sign(x) * xsq);          // box window
 }
 
+//https://web.ma.utexas.edu/users/ysulyma/matrix/
+//matrix rotates [1,0] to the difference between the vectors
 mat2 getUnitLineMatrix(vec2 b1, vec2 b2)
 {
 	vec2 V = b2 - b1;
@@ -86,6 +94,7 @@ mat2 getUnitLineMatrix(vec2 b1, vec2 b2)
 
 ivec2 normalizedCoordToIntegerCell(vec2 ncoord)
 {
+	//oGridRect.zw is the width and height of the grid
 	return clamp(ivec2(ncoord * oGridRect.zw), ivec2(0), oGridRect.zw - 1);
 }
 
@@ -130,14 +139,24 @@ mat2 inverse(mat2 m)
 void main()
 {
 	ivec2 integerCell = normalizedCoordToIntegerCell(oNormCoord);
+	//oGridRect.xy bottom left of grid, 
+	//pointer to cell that contains 0-4 beziers
 	ivec2 indicesCoord = ivec2(oGridRect.xy + integerCell);
 	vec2 cellMid = (integerCell + 0.5) / oGridRect.zw;
 
+	//dF/dx of oNormCoord is units of pixels^-1 
+	//the of the mat2 columns represent the normalized size of the pixel window 
+	//this matrix should be diagonal and the final product could 
+	//map normalized size -> pixel size
 	mat2 initrot = inverse(mat2(dFdx(oNormCoord) * kPixelWindowSize, dFdy(oNormCoord) * kPixelWindowSize));
 
+	// the angle to increment for each sample
 	float theta = pi/float(numSS);
-	mat2 rotM = mat2(cos(theta), sin(theta), -sin(theta), cos(theta)); // note this is column major ordering
 
+// note this is column major ordering
+	mat2 rotM = mat2(cos(theta), sin(theta), -sin(theta), cos(theta)); 
+
+	//fetch the indices into bezier array and bitshift left twice
 	ivec4 indices1 = ivec4(texelFetch(uGridAtlas, indicesCoord, 0) * 255.0);
 
 	// The mid-inside flag is encoded by the order of the beziers indices.

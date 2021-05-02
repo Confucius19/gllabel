@@ -9,18 +9,17 @@ constexpr size_t xy2i(const size_t x, const size_t y, const size_t w) {
 }
 
 template<class T>
-constexpr const T& clamp(const T &v, const T &min, const T &max) {
+constexpr const T& clamp(const T& v, const T& min, const T& max) {
 	return std::max(std::min(v, max), min);
 }
 
 // Returns a list of the beziers that intersect each grid cell.
 // The returned outer vector is always size gridWidth*gridHeight.
 static std::vector<std::set<size_t>> find_cells_intersections(
-	std::vector<Bezier2> &beziers,
-	Vec2 glyphSize,
+	std::vector<Bezier2>& beziers,
+	Vec2 glyphSize, // in font units
 	int gridWidth,
-	int gridHeight)
-{
+	int gridHeight) {
 	std::vector<std::set<size_t>> cellBeziers;
 	cellBeziers.resize(gridWidth * gridHeight);
 
@@ -40,8 +39,10 @@ static std::vector<std::set<size_t>> find_cells_intersections(
 				x * glyphSize.w / gridWidth,
 				intY);
 			for (int j = 0; j < numInt; j++) {
+				//intY[j] contains the y value in font units of the intersection
+				//glyph size is total height of glyph in font units
 				int y = intY[j] * gridHeight / glyphSize.h;
-				setgrid(x,     y, i); // right
+				setgrid(x, y, i); // right
 				setgrid(x - 1, y, i); // left
 				anyIntersections = true;
 			}
@@ -55,8 +56,8 @@ static std::vector<std::set<size_t>> find_cells_intersections(
 				intX);
 			for (int j = 0; j < numInt; j++) {
 				int x = intX[j] * gridWidth / glyphSize.w;
-				setgrid(x, y,      i); // up
-				setgrid(x, y - 1 , i); // down
+				setgrid(x, y, i); // up
+				setgrid(x, y - 1, i); // down
 				anyIntersections = true;
 			}
 		}
@@ -76,11 +77,11 @@ static std::vector<std::set<size_t>> find_cells_intersections(
 // Returns whether the midpoint of the cell is inside the glyph for each cell.
 // The returned vector is always size gridWidth*gridHeight.
 static std::vector<char> find_cells_mids_inside(
-	std::vector<Bezier2> &beziers,
+	std::vector<Bezier2>& beziers,
 	Vec2 glyphSize,
 	int gridWidth,
-	int gridHeight)
-{
+	int gridHeight) {
+
 	std::vector<char> cellMids;
 	cellMids.resize(gridWidth * gridHeight);
 
@@ -130,12 +131,11 @@ static std::vector<char> find_cells_mids_inside(
 }
 
 VGrid::VGrid(
-	std::vector<Bezier2> &beziers,
+	std::vector<Bezier2>& beziers,
 	Vec2 glyphSize,
 	int gridWidth,
 	int gridHeight)
-: width(gridWidth), height(gridHeight)
-{
+	: width(gridWidth), height(gridHeight) {
 	this->cellBeziers = find_cells_intersections(
 		beziers, glyphSize, gridWidth, gridHeight);
 	this->cellMids = find_cells_mids_inside(
@@ -155,12 +155,13 @@ static const uint8_t kBezierIndexFirstReal = 2;
 // Writes the data of a single vgrid cell into a texel. At most `depth` bytes
 // will be written, even if there are more beziers.
 static void write_vgrid_cell_to_buffer(
-	VGrid &grid,
+	VGrid& grid,
 	size_t cellIdx, // which cell in `grid` to write
-	uint8_t *data, // texel buffer, `depth` bytes long
-	uint8_t depth)
-{
-	std::set<size_t> *beziers = &grid.cellBeziers[cellIdx];
+	uint8_t* data, // texel buffer, `depth` bytes long
+	uint8_t depth) {
+
+	//get the beziers in the cell
+	std::set<size_t>* beziers = &grid.cellBeziers[cellIdx];
 
 	// Clear texel
 	for (uint8_t i = 0; i < depth; i++) {
@@ -169,9 +170,11 @@ static void write_vgrid_cell_to_buffer(
 
 	// Write out bezier indices to atlas texel
 	size_t i = 0;
+	//depth is always 4. nBeziers will be from 0-4
 	size_t nbeziers = std::min(beziers->size(), (size_t)depth);
 	auto end = beziers->begin();
 	std::advance(end, nbeziers);
+
 	for (auto it = beziers->begin(); it != end; it++) {
 		// TODO: The uint8_t cast wont overflow because the bezier
 		// limit is checked when loading the glyph. But try to encode
@@ -202,10 +205,11 @@ static void write_vgrid_cell_to_buffer(
 			data[0] = data[1];
 			data[1] = tmp;
 		}
-	// If midInside is 0, make sure that data[0] <= data[1]. This can only
-	// not happen if there is only 1 bezier in this cell, for the reason
-	// described above. Solve by moving the only bezier into data[1].
-	} else if (beziers->size() == 1) {
+		// If midInside is 0, make sure that data[0] <= data[1]. This can only
+		// not happen if there is only 1 bezier in this cell, for the reason
+		// described above. Solve by moving the only bezier into data[1].
+	}
+	else if (beziers->size() == 1) {
 		data[1] = data[0];
 		data[0] = kBezierIndexUnused;
 	}
@@ -214,8 +218,7 @@ static void write_vgrid_cell_to_buffer(
 // Writes an entire vgrid into the atlas, where the bottom-left of the vgrid
 // will be written at (atX, atY). It will take up (grid->width, grid->height)
 // atlas texels and overwrite all contents in that rectangle.
-void VGridAtlas::WriteVGridAt(VGrid &grid, uint16_t atX, uint16_t atY)
-{
+void VGridAtlas::WriteVGridAt(VGrid& grid, uint16_t atX, uint16_t atY) {
 	// TODO: Write an assert() that can take a format message so the
 	// variables can be printed.
 	assert((atX + grid.width) <= this->width);
@@ -224,9 +227,9 @@ void VGridAtlas::WriteVGridAt(VGrid &grid, uint16_t atX, uint16_t atY)
 	for (uint16_t y = 0; y < grid.height; y++) {
 		for (uint16_t x = 0; x < grid.width; x++) {
 			size_t cellIdx = xy2i(x, y, grid.width);
-			size_t atlasIdx = xy2i(atX+x, atY+y, this->width) * this->depth;
+			size_t atlasIdx = xy2i(atX + x, atY + y, this->width) * this->depth;
 
-			std::set<size_t> *beziers = &grid.cellBeziers[cellIdx];
+			std::set<size_t>* beziers = &grid.cellBeziers[cellIdx];
 			if (beziers->size() > this->depth) {
 				std::cerr << "WARN: Too many beziers in one grid cell ("
 					<< "max: " << this->depth
@@ -235,7 +238,7 @@ void VGridAtlas::WriteVGridAt(VGrid &grid, uint16_t atX, uint16_t atY)
 					<< ", y: " << y << ")\n";
 			}
 
-			uint8_t *data = &this->data[atlasIdx];
+			uint8_t* data = &this->data[atlasIdx];
 			write_vgrid_cell_to_buffer(grid, cellIdx, data, this->depth);
 		}
 	}
